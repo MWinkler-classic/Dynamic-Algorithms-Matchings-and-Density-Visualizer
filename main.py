@@ -5,9 +5,12 @@ import numpy as np
 import scipy as sp
 from matplotlib import cm
 
+MAX_DELTA = 10
+L_TAG_RANGE = 1
+ONE_PLUS_EPSILON = 1.05
 
 class RandomGraphAnalyzer:
-    def __init__(self, num_nodes=50, num_edges=100):
+    def __init__(self, num_nodes=4000, num_edges=20000):
         self.num_nodes = num_nodes
         self.num_edges = num_edges
         self.G = self.create_random_graph()
@@ -34,7 +37,8 @@ class RandomGraphAnalyzer:
 
     def f(self, delta):
         """Define the function f(delta)."""
-        return 1 / (1 + (1.1) ** (delta))
+        # return 1 / (1 + (1.1) ** (delta))
+        return 0 if delta > MAX_DELTA else 0.5
 
     def calculate_loads(self):
         """Calculate the loads based on node levels."""
@@ -55,22 +59,28 @@ class RandomGraphAnalyzer:
                     self.node_loads[v] += self.f(delta)
                     self.node_loads[u] += 1 - self.f(delta)
 
-    def compute_median(self):
-        """Compute the median load of nodes with load > 0."""
-        positive_loads = [load for node, load in self.node_loads.items() if self.node_levels[node] > 0]
-        return np.median(positive_loads) if positive_loads else 0
+    def compute_average(self):
+        """Compute the average load of nodes with load > 0."""
+        L_TAG = max(self.node_levels.values())
+        positive_loads = [load for node, load in self.node_loads.items() if
+                          self.node_levels[node] > L_TAG - MAX_DELTA*L_TAG_RANGE]
+        print("max level:" + str(L_TAG))
+        # for node, load in self.node_loads.items():
+        #     print(self.node_levels[node])
+        return np.average(positive_loads) if positive_loads else 0
 
     def classify_nodes(self):
         """Classify nodes as up_dirty or down_dirty based on their loads."""
-        median = self.compute_median()
-        t = 1.1
+        average = self.compute_average()
+        t = ONE_PLUS_EPSILON
         up_dirty = []
         down_dirty = []
 
+        print("average = " + str(average) + ", max load = " + str(max(self.node_loads.values())) + "\n")
         for node, load in self.node_loads.items():
-            if load > t * median:
+            if load > t * average:
                 up_dirty.append(node)
-            elif load < median / (2*t) and self.node_levels[node] != 0:
+            elif load < average / (2*t) and self.node_levels[node] != 0:
                 down_dirty.append(node)
 
         return up_dirty, down_dirty
@@ -78,7 +88,7 @@ class RandomGraphAnalyzer:
     def adjust_levels(self):
         """Adjust levels of dirty nodes while printing the graph after each adjustment."""
         iteration = 0
-        for i in range(20):
+        for i in range(200):
             up_dirty, down_dirty = self.classify_nodes()
             if not up_dirty and not down_dirty:
                 break
@@ -107,8 +117,8 @@ class RandomGraphAnalyzer:
             colors = self.color_nodes_based_on_load(norm_loads)
 
             # Draw the graph with updated node colors based on new loads
-            # if iteration % 10 == 0:
-            self.draw_graph(f"Iteration {iteration}: Adjusted Graph", colors)
+            if iteration % 10 == 0:
+                self.draw_graph(f"Iteration {iteration}: Adjusted Graph", colors)
 
             iteration += 1
         print(f"Finished. Iteration: {iteration}")
